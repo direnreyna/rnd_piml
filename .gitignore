@@ -1,0 +1,13 @@
+# .gitignore
+
+# Virtual Environments
+venv_piml/
+
+# Python
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
