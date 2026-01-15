@@ -1,12 +1,13 @@
 # rnd_piml
 
 ## для запуска в колабе:
-создать и запустить файл:
 
-```!git clone https://github.com/direnreyna/rnd_piml.git
+### создать и запустить файл:
 
-```%cd rnd_piml
+`!git clone https://github.com/direnreyna/rnd_piml.git1`
 
-```!pip install -r requirements.txt
+`%cd rnd_piml`
 
-```!python main.py
+`!pip install -r requirements.txt`
+
+`!python main.py`
