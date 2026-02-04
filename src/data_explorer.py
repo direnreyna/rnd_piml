@@ -31,8 +31,11 @@ class DataExplorer:
 
         print("\n--- [DATASET VALIDATION REPORT] ---")
         print(f"[*] Total rows: {len(df)}")
-        print(f"[*] Columns: {list(df.columns)}")
-        
+        print(f"[*] Dataset shape (rows, cols): {df.shape}")
+        print("[*] List of all columns:")
+        for col in df.columns:
+            print(f"  - {col}")
+     
         # 1. Проверка на пустые значения
         null_counts = df.isnull().sum().sum()
         if null_counts > 0:
@@ -41,8 +44,8 @@ class DataExplorer:
             print("[+] Integrity: No null values found.")
 
         # 2. Статистика по датчикам
-        print("\n[Counts by Sensor]:")
-        print(df['sensor_id'].value_counts())
+        print("\n[Counts by Bearing]:")
+        print(df['bearing_id'].value_counts())
 
         # 3. Проверка физических диапазонов (пример для RMS)
         if 'rms' in df.columns:

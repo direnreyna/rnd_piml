@@ -1,5 +1,7 @@
 # src/storage_manager.py
+
 import pandas as pd
+from datetime import datetime
 from typing import List, Dict
 
 class DataAggregator:
@@ -8,19 +10,23 @@ class DataAggregator:
     def __init__(self):
         self.rows: List[Dict] = []
 
-    def add_row(self, timestamp, test_id: str, sensor_id: str, features: Dict[str, float]):
+    def add_row(self, timestamp: datetime, test_id: str, bearing_id: str, features: Dict[str, float], rul: float, health_state: int):
         """Добавляет строку в общий набор.
 
         Args:
-            timestamp: Метка времени файла.
+            timestamp (datetime): Метка времени файла.
             test_id (str): ID эксперимента.
-            sensor_id (str): Имя датчика/канала.
+            bearing_id (str): Имя подшипника.
             features (Dict): Словарь рассчитанных фич.
+            rul (float): Остаточный ресурс в часах.
+            health_state (int): Класс состояния (0, 1, 2).
         """
         row = {
             "timestamp": timestamp,
             "test_id": test_id,
-            "sensor_id": sensor_id
+            "bearing_id": bearing_id,
+            "rul": rul,
+            "health_state": health_state
         }
         row.update(features)
         self.rows.append(row)
@@ -33,5 +39,5 @@ class DataAggregator:
         """
         df = pd.DataFrame(self.rows)
         # Сортируем для удобства последующего анализа
-        df = df.sort_values(["test_id", "timestamp", "sensor_id"])
+        df = df.sort_values(["test_id", "timestamp", "bearing_id"])
         df.to_parquet(path, index=False)

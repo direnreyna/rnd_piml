@@ -28,16 +28,16 @@ class DatasetEnhancer:
             pd.DataFrame: Обогащенный датафрейм.
         """
         # Сортировка важна для корректного расчета скользящего окна
-        self.df = self.df.sort_values(['sensor_id', 'timestamp'])
+        self.df = self.df.sort_values(['bearing_id', 'timestamp']) ## ИЗМЕНЕНО
         
         # Список колонок, которые подлежат расширению
-        exclude: List[str] = ['timestamp', 'test_id', 'sensor_id']
+        exclude: List[str] = ['timestamp', 'test_id', 'bearing_id', 'rul', 'health_state']
         feature_cols: List[str] = [c for c in self.df.columns if c not in exclude]
         
         new_cols_dict: dict = {}
         
         for col in feature_cols:
-            group = self.df.groupby('sensor_id')[col]
+            group = self.df.groupby('bearing_id')[col]
             
             # Скользящее среднее (тренд)
             new_cols_dict[f"{col}_rolling_mean"] = group.transform(

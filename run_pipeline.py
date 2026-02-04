@@ -4,7 +4,10 @@ import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from src.settings import GlobalConfig
+from datetime import datetime
+from typing import Dict
+
+from src.settings import GlobalConfig, ExperimentSpec
 from src.data_loader import IMSRawLoader
 from src.feature_engine import FeatureCalculator
 from src.spectral_engine import SpectralCalculator
@@ -50,28 +53,44 @@ def main() -> None:
 
             win_len = config.window.length
             step = config.window.step
-
-            for channel in df.columns:
-                # Используем to_numpy() для явного приведения к ndarray[float64]
-                signal_data: np.ndarray = df[channel].to_numpy(dtype=np.float64)
-
-                # Нарезка на окна с перекрытием
-                for start in range(0, len(signal_data) - win_len + 1, step):
-                    window = signal_data[start : start + win_len]
-
-                    features = calc.calculate_all(window)
-
-                    spec_features = calc_spec.calculate_spectral(
-                        window, 
-                        config.window.sampling_rate
-                    )
-                    features.update(spec_features)
-
+            spec = config.experiments[target_test]
+            
+            for b_name in spec.bearing_names:
+                # 1. Сбор признаков по всем каналам подшипника
+                b_features: Dict[str, float] = {}
+                channels = spec.bearing_to_channels[b_name]
+                
+                # Подготовка сигналов для всех осей подшипника
+                axis_signals = {ch: df[ch].to_numpy(dtype=np.float64) for ch in channels}
+                
+                # 2. Нарезка на окна (синхронно для всех осей)
+                n_samples = len(next(iter(axis_signals.values())))
+                for start in range(0, n_samples - win_len + 1, step):
+                    window_features: Dict[str, float] = {}
+                    
+                    for ch_name, full_signal in axis_signals.items():
+                        window = full_signal[start : start + win_len]
+                        
+                        # Базовая статистика
+                        base_f = calc.calculate_all(window)
+                        # Спектральная статистика
+                        spec_f = calc_spec.calculate_spectral(window, config.window.sampling_rate)
+                        
+                        # Добавление суффикса канала (например, _x или _y)
+                        suffix = ch_name[-1] if "_" in ch_name else ""
+                        for k, v in {**base_f, **spec_f}.items():
+                            window_features[f"{k}_{suffix}" if suffix else k] = v
+                    
+                    # 3. Расчет RUL и Health State
+                    rul, state = calculate_bearing_status(ts, b_name, spec, config)
+                    
                     aggregator.add_row(
                         timestamp=ts,
                         test_id=target_test,
-                        sensor_id=channel,
-                        features=features
+                        bearing_id=b_name,
+                        features=window_features,
+                        rul=rul,
+                        health_state=state
                     )
 
         # Сохранение результата
@@ -91,7 +110,6 @@ def main() -> None:
     else:
         print(f"[*] Enhanced dataset already exists at {enhanced_path}")
 
-
     ################################################################################
     # ТЕСТ ДАТАФРЕЙМА
     ################################################################################
@@ -100,6 +118,41 @@ def main() -> None:
     explorer.run_basic_checks()
 
     print("[+] Done.")
+
+def calculate_bearing_status(current_ts: datetime, b_name: str, 
+                             spec: ExperimentSpec, config: GlobalConfig) -> tuple[float, int]:
+    """Рассчитывает RUL и класс здоровья подшипника.
+
+    Args:
+        current_ts (datetime): Текущее время файла.
+        b_name (str): Имя подшипника.
+        spec (ExperimentSpec): Спецификация теста.
+        config (GlobalConfig): Глобальный конфиг.
+
+    Returns:
+        tuple[float, int]: (RUL в часах, класс здоровья 0-2).
+    """
+    fail_str = spec.failure_times.get(b_name)
+    
+    # Если подшипник не ломался - он всегда здоров
+    if fail_str is None:
+        return config.rul_threshold_hours, 0
+    
+    fail_ts = datetime.strptime(fail_str, "%Y.%m.%d.%H.%M.%S")
+    time_to_fail = (fail_ts - current_ts).total_seconds() / 3600.0
+    
+    # Ограничение RUL сверху согласно логике Piecewise Linear
+    rul = min(config.rul_threshold_hours, max(0.0, time_to_fail))
+    
+    # Определение класса здоровья
+    if rul >= config.rul_threshold_hours:
+        state = 0 # Здоров (A)
+    elif rul >= config.health_threshold_yellow:
+        state = 1 # Предупреждение (B)
+    else:
+        state = 2 # Критический (C)
+        
+    return float(rul), int(state)
 
 if __name__ == "__main__":
     main()
